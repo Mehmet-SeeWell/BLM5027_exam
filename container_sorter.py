@@ -167,18 +167,16 @@ class Sorter:
     def container_check():
         reward = 0
 
-        # Penalize keeping cargo in the queue (encourage placing)
+        ### Penalize keeping cargo in the queue (encourage placing)
         reward -= len(Sorter.cargo)
 
-        # Penalize anything sitting in the temp port
+        ### Penalize anything sitting in the temp port
         # reward -= len(Sorter.ports[2])
 
-        # Only evaluate terminal condition when all cargo is placed
+        ### If all the cargo are placed correctly
         if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
             if False not in [Sorter.is_sorted(n) for n in range(3)]:
-                reward += 1000  # Win!
-            # No partial pair bonuses — don't reward intermediate arrangements
-
+                reward += 1000
         return reward
 
     def render_port(): ### Render the current state of the ports
