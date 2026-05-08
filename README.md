@@ -1,8 +1,8 @@
 # BLM5027 Midterms Project - Reinforcement Learning with Container Sorter
-Bu projede, Q-Learning algoritmasını kullanarak farklı boyutlarda bir yığın konteynerı çıkış önceliklerini göz önünde bulundurarak sıralı bir şekilde iki adet limana istifleyebilecek bir ajan eğiteceğiz.
+Bu projede, Q-Learning algoritmasını kullanarak farklı boyutlarda bir yığın konteyneri çıkış önceliklerini göz önünde bulundurarak sıralı bir şekilde iki adet limana istifleyebilecek bir ajan eğiteceğiz.
 
 ## Proje Detayları
-Bu projede, bir kargo alanındaki konteynerleri alıp sırayla çıkarılacakları bir limana taşıyan bir düzenleyici (Sorter) tasarlanmıştır. Konteynerlar, kargo alanından sırayla çıkarılmalıdır ve hepsinin sırasından bağımsız bir çıkış önceliği bulunmaktadır. 
+Bu projede, bir kargo alanındaki konteynerleri alıp sırayla çıkarılacakları bir limana taşıyan bir düzenleyici (Sorter) tasarlanmıştır. Konteynerler, kargo alanından sırayla çıkarılmalıdır ve hepsinin sırasından bağımsız bir çıkış önceliği bulunmaktadır. 
 
 Düzenleyicinin amacı, bu konteynerleri limanlara dizerken daha önce çıkarılması gereken konteynerleri daha yukarı ve daha sonra çıkarılması gereken konteynerleri daha aşağıya yerleştirmektir. Eğer ki önceliği olan bir konteyner altta kalırsa, onu çıkarmak için üstündeki konteynerleri hareket ettirmesi gerekmektedir ve bu da bulunan kısıtlı alandan ötürü çok büyük bir zaman kaybıdır. Var olan 2 limanın yanı sıra daha küçük bir geçici limanı bulunmaktadır ve konteynerlerin yerini değiştirirken yardımcı olsa da düzenlemenin sonunda bu limanda konteyner bulunmaması gerekmektedir.
 
@@ -13,15 +13,61 @@ Düzenleyi, her adımda 3 + 6 = 9 adet farklı eylemden birini gerçekleştirebi
 - 0-2: Kargo alanından Limana konteyner yerleştirme (0: Birinci limana yerleştir, 1: İkinci limana yerleştir, 2: Geçici limana yerleştir)
 - 3-8: Limanlar arası konteyner taşıma (3-4: Birinci limandan ikinci/geçici limana taşı, 5-6: İkinci limandan birinci/geçici limana taşı, 7-8: Geçici limandan birinci/ikinci limana taşı)
 
+```
+def place_to_port(port_id):
+    if len(Sorter.cargo) > 0 and len(Sorter.ports[port_id]) < Sorter.port_capacity:
+        container = Sorter.cargo.pop(0)
+        Sorter.ports[port_id].append(container) ### Takes the first element of cargo and places it into the port
+        return -1
+    else:
+        return -10 ### Illegal move
+
+def place_to_temp_port():
+    if len(Sorter.cargo) > 0 and len(Sorter.ports[2]) < Sorter.temp_port_capacity:
+        container = Sorter.cargo.pop(0)
+        Sorter.ports[2].append(container) ### Takes the first element of cargo and places it into the port
+        return -1
+    else:
+        return -10 ### Illegal move
+
+def move_from_port(source_id, target_id):
+    if len(Sorter.ports[source_id]) > 0 and (
+        (target_id == 2 and len(Sorter.ports[target_id]) < Sorter.temp_port_capacity) ### If moving to the temporary port
+        or 
+        (target_id < 2 and len(Sorter.ports[target_id]) < Sorter.port_capacity) ### If moving to the other two ports
+        ): 
+        
+        container = Sorter.ports[source_id].pop(-1)
+        Sorter.ports[target_id].append(container) ### Takes the last element of a port and moves it to another port
+
+        return -1
+    else:
+        return -10 ### Illegal move
+```
+
 Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner hareket ettirilebiliyor. Bu eylemlerin her biri zaman kaybına sebep olduğundan ötürü -1 ve imkansız oldukları durumlarda denenirlerse o zaman -10 puanlık bir cezaya sebep olurlar. Aynı zamanda her bir adımda düzenleyici, eylem gerçekleştirdikten sonra konteynerlerin düzeni üzerinden de değerlendirilir:
 
 - Kargo alanında bulunan her bir konteyner başına -1 puan (Kargo alanını boşaltmayı ödüllendirmek adına)
-- Eğer bütün limanlardaki konteynerler düzenli bir şekilde yerkeştirilmiş ve geçici liman boş bırakıldıysa +1000 puan (Düzenleyicininn görevi tamamlanmıştır.)
+- Eğer bütün limanlardaki konteynerler düzenli bir şekilde yerleştirilmiş ve geçici liman boş bırakıldıysa +1000 puan (Düzenleyicininn görevi tamamlanmıştır.)
+
+```
+def container_check():
+    reward = 0
+    
+    ### Penalize keeping cargo in the queue (encourage placing)
+    reward -= len(Sorter.cargo)
+    
+    ### If all the cargo are placed correctly
+    if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
+        if False not in [Sorter.is_sorted(n) for n in range(3)]:
+            reward += 1000
+    return reward
+```
 
 Modelin ilk versiyonlarında burada hem düzenli liman başına ödül ve geçici limanda bulunan konteyner başına ceza veriliyordu, fakat bu ikisi de modeli devamlı aynı konteyneri ileri geri hareket ettirmeye teşvik ettiğinden kaldırıldı.
 
 ## Model Yapısı
-Bu model, önceki Taxi-v3 projesine göre çok daha fazla parçadan oluşmakta ve daha karmaşıktır. Bu sebepten ötürü de elimizdeki durum uzayı da çok daha büyük olacaktır ve bu hem her bir write/look-up eyleminin daha uzun süreceği hem de uygulama sırasında daha önce hiç karşılaşmadığımız bir duruma gelme riskinin var olduğu anlamına geliyor. En naif yaklaşım ile durum uzayımızı oluşturacak olursak o zaman n konteynr sayısı için:
+Bu model, önceki Taxi-v3 projesine göre çok daha fazla parçadan oluşmakta ve daha karmaşıktır. Bu sebepten ötürü de elimizdeki durum uzayı da çok daha büyük olacaktır ve bu hem her bir write/look-up eyleminin daha uzun süreceği hem de uygulama sırasında daha önce hiç karşılaşmadığımız bir duruma gelme riskinin var olduğu anlamına geliyor. En naif yaklaşım ile durum uzayımızı oluşturacak olursak o zaman n konteyner sayısı için:
 Konteynerlerin sahip olabileceği konum sayısı = _m_ = n (Kargo) + ⌈n/2⌉ (Liman 1) + ⌈n/2⌉ (Liman 2) + ⌊⌈n/2⌉/2⌋ (Geçici Liman)
 Toplam uzay boyutu: m^n
 
