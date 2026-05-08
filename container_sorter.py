@@ -6,25 +6,25 @@ class Sorter:
     action = -1 ### 0: Place container to port 1, 1: Place container to port 2, 2: Place container to the temporary port, 3: Move from port 1 to port 2, 4: Move from port 1 to temporary port, 5: Move from port 2 to port 1, 6: Move from port 2 to temporary port, 7: Move from temporary port to port 1, 8: Move from temporary port to port 2
     reward = 0
 
-    cargo = []
-    ports = [[],[],[]]
+    cargo = [] ### The containers that are to be sorted
+    ports = [[],[],[]] ### Port 1, Port 2 and Temporary Port
 
-    port_capacity = 0
-    temp_port_capacity = 0
-    number_of_containers = 0
+    port_capacity = 0 ### Number of containers that can be placed to a single port
+    temp_port_capacity = 0 ### Number of containers that the temporary port can hold
+    number_of_containers = 0 ### Number of containers in the cargo at the start
 
-    # Hyperparameters
+    ### Hyperparameters
     learning_rate = 0.2
     discount_factor = 0.95
     epsilon = 0.95
 
-    num_of_states = 0
+    num_of_states = 0 ### 
     num_of_actions = 9
     q_table = np.zeros([num_of_states, num_of_actions])
 
     def reset_q_table(number_of_containers):
         Sorter.number_of_containers = number_of_containers
-        Sorter.port_capacity = (number_of_containers + 1) // 2
+        Sorter.port_capacity = (number_of_containers + 1) // 2 ### Port capacity is set to allow for all containers to fit
         Sorter.temp_port_capacity = Sorter.port_capacity // 2
 
         incoming_states = Sorter.number_of_containers + 1
@@ -40,24 +40,25 @@ class Sorter:
         Sorter.ports = [[],[],[]]
         Sorter.reward = 0
 
-        for n in range(Sorter.number_of_containers):
+        for n in range(Sorter.number_of_containers): ### Place all the containers to the cargo
             Sorter.cargo.append(n)
         
-        rnd.shuffle(Sorter.cargo)
+        rnd.shuffle(Sorter.cargo) ### Randomize the cargo
 
-    def port_is_sorted(port):
-        for i in range(len(port) - 1):
-            if port[i] < port[i + 1]:
+    def is_sorted(n): ### If a port is arranged correctly (lower priority above higher priority)
+        for i in range(len(Sorter.ports[n]) - 1):
+            if Sorter.ports[n][i] < Sorter.ports[n][i + 1]:
                 return False
         return True
 
-    def port_state(port):
+    def port_state(n): ### The current state value of a port
+        port = Sorter.ports[n]
         if len(port) == 0:
             return 0
 
         height = len(port)
         top_box = port[-1]
-        sorted_flag = int(Sorter.port_is_sorted(port))
+        sorted_flag = int(Sorter.is_sorted(n))
 
         return 1 + (
             (height - 1) * Sorter.number_of_containers * 2
@@ -65,15 +66,15 @@ class Sorter:
             + sorted_flag
         )
 
-    def get_current_state():
+    def get_current_state(): ### Find the current state of the system
         incoming = Sorter.cargo[0] if len(Sorter.cargo) > 0 else Sorter.number_of_containers
 
         main_port_states = 1 + Sorter.number_of_containers * Sorter.port_capacity * 2
         temp_port_states = 1 + Sorter.number_of_containers * Sorter.temp_port_capacity * 2
 
-        port_1_state = Sorter.port_state(Sorter.ports[0])
-        port_2_state = Sorter.port_state(Sorter.ports[1])
-        temp_state = Sorter.port_state(Sorter.ports[2])
+        port_1_state = Sorter.port_state(0)
+        port_2_state = Sorter.port_state(1)
+        temp_state = Sorter.port_state(2)
 
         state = incoming
         state = state * main_port_states + port_1_state
@@ -88,16 +89,16 @@ class Sorter:
     def step(learn = False):
         old_state = Sorter.get_current_state()
 
-        if rnd.uniform(0, 1) < Sorter.epsilon:
+        if rnd.uniform(0, 1) < Sorter.epsilon:  ### Explore
             Sorter.action = rnd.randrange(Sorter.num_of_actions)
-        else:
+        else:                                   ### Exploit
             Sorter.action = np.argmax(Sorter.q_table[old_state])
 
-        reward = Sorter.act()
-        reward += Sorter.container_check()
+        reward = Sorter.act() ### Reward from the Sorter's action
+        reward += Sorter.container_check() ### Reward from the current state of the ports
         Sorter.reward += reward
 
-        terminated = (reward >= 200)
+        terminated = (reward >= 200) ### Terminate if the sorting is complete
 
         if learn:
             if terminated:
@@ -174,20 +175,13 @@ class Sorter:
 
         # Only evaluate terminal condition when all cargo is placed
         if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
-            if Sorter.is_sorted():
+            if False not in [Sorter.is_sorted(n) for n in range(3)]:
                 reward += 1000  # Win!
             # No partial pair bonuses — don't reward intermediate arrangements
 
         return reward
 
-    def is_sorted():
-        for port in Sorter.ports[:2]:
-            for i in range(len(port) - 1):
-                if port[i] < port[i + 1]:  # bottom should be HIGHER number, top should be LOWER
-                    return False
-        return True
-
-    def render_port():
+    def render_port(): ### Render the current state of the ports
         def show_box(box):
             return f"[{box:02}]"
 
