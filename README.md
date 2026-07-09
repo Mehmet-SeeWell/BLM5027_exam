@@ -17,7 +17,7 @@ Güncel sistemde toplam dört liman bulunmaktadır:
 
 Birinci ve ikinci liman, normal konteynerlerin yerleştirilmesi gereken limanlardır. Geçici liman, konteynerlerin yerini değiştirirken ara depolama alanı olarak kullanılabilir ancak düzenlemenin başarılı sayılabilmesi için işlem sonunda geçici limanın boş olması gerekmektedir. Toksik madde limanı ise toksik madde içeren konteynerlerin ayrıştırılması için eklenmiştir.
 
-Limanların boyutları, kargodaki bütün konteynerleri dizebilmeye yetecek kadar olmalıdır. Bu sebepten dolayı n adet konteyner için her bir limanda ⌈n/2⌉ adet boşluk vardır. Geçici limanda ise bunun yarısı olacak şekilde ⌊⌈n/2⌉/2⌋ boşluk bulunmaktadır.
+Limanların boyutları, kargodaki bütün konteynerleri dizebilmeye yetecek kadar olmalıdır. Bu versiyonda eklenen özelliklerden ötürü modele yardımcı olmak adına limanların kapasitesini arttırarak toplam konteyner sayısına eşitledim. Aynı zamanda da geçici limanın boyutu n adet konteyner için ⌊(n+1)/2⌋ olarak değiştirildi.
 
 Düzenleyici, her adımda 4 + 12 = 16 adet farklı eylemden birini gerçekleştirebilir:
 
@@ -94,15 +94,15 @@ Bu modelin bir önceki versiyonunda durum uzayını yapabildiğimizce küçülte
 > 4 konteyner = 13,005  
 > 5 konteyner = 63,426  
 > 6 konteyner = 124,579  
-> 7 konteyner = 753,768
+> 7 konteyner = 753,768  
 > 8 konteyner = 1,254,825  
 
 Fakat yeni eklediğimiz özelliklerden dolayı modelimiz daha da karışık bir hale gelmiştir ve önceki modelde uyguladığımız optimizasyonlara rağmen durum uzayımız katlarca büyümüştür:
-> 4 konteyner = 275,346,465,625 
-> 5 konteyner = 2,429,362,434,991  
-> 6 konteyner = 10,369,025,507,125  
-> 7 konteyner = 47,185,972,290,787
-> 8 konteyner = 136,818,247,206,193
+> 4 konteyner = 275,346,465,625  
+> 5 konteyner = 2,429,362,434,991   
+> 6 konteyner = 10,369,025,507,125   
+> 7 konteyner = 47,185,972,290,787  
+> 8 konteyner = 136,818,247,206,193  
 
 ```
     def container_size(container): ### The size value of a container
