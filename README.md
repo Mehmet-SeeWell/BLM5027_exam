@@ -1,27 +1,23 @@
 # BLM5027 Finals Project - Reinforcement Learning with Container Sorter
-Bu projede, Q-Learning algoritmasını kullanarak farklı boyutlarda bir yığın konteyneri çıkış önceliklerini göz önünde bulundurarak sıralı bir şekilde üç adet limana istifleyebilecek bir ajan eğiteceğiz.
+Bu projede, Q-Learning algoritmasını kullanarak farklı boyutlardaki konteynerleri çıkış önceliklerini göz önünde bulundurarak uygun limanlara sıralı bir şekilde istifleyebilecek bir ajan eğitilmektedir.
 
 ## Proje Detayları
-Bu projede, bir kargo alanındaki konteynerleri alıp çıkarılacakları sıraya, boyutlarına ve özelliklerine göre limanlara taşıyacak bir düzenleyici (Sorter) tasarlanmıştır. Konteynerler, kargo alanından sırayla çıkarılmalıdır ve hepsinin sırasından bağımsız bir çıkış önceliği bulunmaktadır. 
-
-Düzenleyicinin amacı, bu konteynerleri limanlara dizerken daha önce çıkarılması gereken konteynerleri daha yukarı ve daha sonra çıkarılması gereken konteynerleri daha aşağıya yerleştirmektir. Eğer ki önceliği olan bir konteyner altta kalırsa, onu çıkarmak için üstündeki konteynerleri hareket ettirmesi gerekmektedir ve bu da bulunan kısıtlı alandan ötürü çok büyük bir zaman kaybıdır. 
-
-Projenin güncel hâlinde konteynerlere iki yeni özellik eklenmiştir. Bunlardan ilki konteyner boyutudur. Her konteyner küçük (S), orta (M) veya büyük (L) boyutlarından birine sahiptir. İstifleme sırasında daha büyük bir konteyner, daha küçük bir konteynerin üzerine yerleştirilemez. Bu sebepten ötürü bir konteyner yalnızca kendisiyle aynı boyutta veya kendisinden büyük bir konteynerin üzerine konulabilir. İkinci yeni özellik ise bazı konteynerlerin içerisinde diğer konteynerler ile birlikte bulundurulmaması gereken zehirli kimyasal maddelerin olmasıdır. Bu konteynerler toksik olarak işaretlenmiştir ve düzenleme tamamlandığında bu konteynerlerin kendilerine özgün ayrı bir limanda bulunması beklenmektedir. 
+Bu projede, bir kargo alanındaki konteynerleri alıp çıkarılacakları sıraya, boyutlarına ve özelliklerine göre limanlara taşıyacak bir düzenleyici (Sorter) tasarlanmıştır. Konteynerler, kargo alanından sırayla alınmalıdır; ancak her konteynerin bu sıradan bağımsız bir çıkış önceliği bulunmaktadır. Düzenleyicinin amacı, konteynerleri limanlara dizerken daha önce çıkarılması gereken konteynerleri daha yukarıya, daha sonra çıkarılması gereken konteynerleri ise daha aşağıya yerleştirmektir. Eğer öncelikli bir konteyner altta kalırsa, onu çıkarmak için üstündeki konteynerlerin hareket ettirilmesi gerekir. Bu da sınırlı alandan dolayı önemli bir zaman kaybına sebep olur. Projenin güncel hâlinde konteynerlere iki yeni özellik eklenmiştir. Bunlardan ilki konteyner boyutudur. Her konteyner küçük (S), orta (M) veya büyük (L) boyutlarından birine sahiptir. İstifleme sırasında daha büyük bir konteyner, daha küçük bir konteynerin üzerine yerleştirilemez. Bu sebeple bir konteyner yalnızca kendisiyle aynı boyutta veya kendisinden büyük bir konteynerin üzerine konulabilir. İkinci yeni özellik ise bazı konteynerlerin içerisinde diğer konteynerlerle birlikte bulundurulmaması gereken zehirli kimyasal maddelerin olmasıdır. Bu konteynerler toksik olarak işaretlenmiştir ve düzenleme tamamlandığında kendilerine ayrılmış ayrı bir limanda bulunmaları beklenmektedir. 
 
 Güncel sistemde toplam dört liman bulunmaktadır:
 
 * Birinci liman
 * İkinci liman
 * Geçici liman
-* Toksik Madde limanı
+* Toksik Madde Limanı
 
-Birinci ve ikinci liman, normal konteynerlerin yerleştirilmesi gereken limanlardır. Geçici liman, konteynerlerin yerini değiştirirken ara depolama alanı olarak kullanılabilir ancak düzenlemenin başarılı sayılabilmesi için işlem sonunda geçici limanın boş olması gerekmektedir. Toksik madde limanı ise toksik madde içeren konteynerlerin ayrıştırılması için eklenmiştir.
+Birinci ve ikinci liman, normal konteynerlerin yerleştirilmesi gereken limanlardır. Geçici liman, konteynerlerin yerini değiştirirken ara depolama alanı olarak kullanılabilir; ancak düzenlemenin başarılı sayılabilmesi için işlem sonunda boş olması gerekmektedir. Toksik Madde Limanı ise toksik madde içeren konteynerlerin ayrıştırılması için eklenmiştir.
 
-Limanların boyutları, kargodaki bütün konteynerleri dizebilmeye yetecek kadar olmalıdır. Bu versiyonda eklenen özelliklerden ötürü modele yardımcı olmak adına limanların kapasitesini arttırarak toplam konteyner sayısına eşitledim. Aynı zamanda da geçici limanın boyutu n adet konteyner için ⌊(n+1)/2⌋ olarak değiştirildi.
+Liman kapasiteleri, kargodaki konteynerlerin düzenlenmesini mümkün kılacak şekilde belirlenmiştir. Bu versiyonda eklenen özelliklerden dolayı modele yardımcı olmak adına liman kapasiteleri artırılmıştır. Aynı zamanda geçici limanın boyutu n adet konteyner için ⌊(n+1)/2⌋ olarak değiştirilmiştir.
 
 Düzenleyici, her adımda 4 + 12 = 16 adet farklı eylemden birini gerçekleştirebilir:
 
-- 0-3: Kargo alanından Limana konteyner yerleştirme (0: Birinci limana yerleştir, 1: İkinci limana yerleştir, 2: Geçici limana yerleştir, 3: Toksik madde limanına yerleştir)
+- 0-3: Kargo alanından limana konteyner yerleştirme (0: Birinci limana yerleştir, 1: İkinci limana yerleştir, 2: Geçici limana yerleştir, 3: Toksik madde limanına yerleştir)
 - 4-15: Limanlar arası konteyner taşıma (4-6: Birinci limandan ikinci/geçici/toksik limana taşı, 7-9: İkinci limandan birinci/geçici/toksik limana taşı, 10-12: Geçici limandan birinci/ikinci/toksik limana taşı, 13-15: Toksik limandan birinci/ikinci/geçici limana taşı)
 
 ```
@@ -74,10 +70,10 @@ Düzenleyici, her adımda 4 + 12 = 16 adet farklı eylemden birini gerçekleşti
             return -10 ### Illegal move
 ```
 
-Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner hareket ettirilebiliyor. Bu eylemlerin her biri zaman kaybına sebep olduğundan ötürü -1 ve imkansız oldukları durumlarda denenirlerse o zaman -10 puanlık bir cezaya sebep olurlar. Aynı zamanda her bir adımda düzenleyici, eylem gerçekleştirdikten sonra konteynerlerin düzeni üzerinden de değerlendirilir:
+Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner hareket ettirilebilir. Bu eylemlerin her biri zaman kaybına sebep olduğundan -1 puanlık cezaya sahiptir. İmkânsız oldukları durumlarda denenirlerse -10 puanlık daha büyük bir cezaya sebep olurlar. Aynı zamanda her adımda düzenleyici, eylem gerçekleştirdikten sonra konteynerlerin düzeni üzerinden de değerlendirilir:
 
 - Kargo alanında bulunan her bir konteyner başına -1 puan (Kargo alanını boşaltmayı ödüllendirmek adına)
-- Eğer bütün limanlardaki konteynerler düzenli bir şekilde yerleştirilmiş ve geçici liman boş bırakıldıysa +1000 puan (Düzenleyicininn görevi tamamlanmıştır.)
+- Eğer bütün limanlardaki konteynerler düzenli bir şekilde yerleştirilmiş ve geçici liman boş bırakıldıysa +1000 puan (Düzenleyicinin görevi tamamlanmıştır.)
 
 ```
     def container_check():
@@ -91,14 +87,14 @@ Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner ha
 ```
 
 ## Model Yapısı
-Bu modelin bir önceki versiyonunda durum uzayını yapabildiğimizce küçülterek eğitim süremizi ve eğitim sırasında öğrendiğimiz durum oranını yükseltmeye çalışmıştık:
+Bu modelin bir önceki versiyonunda durum uzayını mümkün olduğunca küçülterek eğitim süresini azaltmaya ve eğitim sırasında öğrenilen durum oranını yükseltmeye çalışmıştık:
 > 4 konteyner = 13,005  
 > 5 konteyner = 63,426  
 > 6 konteyner = 124,579  
 > 7 konteyner = 753,768  
 > 8 konteyner = 1,254,825  
 
-Fakat yeni eklediğimiz özelliklerden dolayı modelimiz daha da karışık bir hale gelmiştir ve önceki modelde uyguladığımız optimizasyonlara rağmen durum uzayımız katlarca büyümüştür:
+Fakat yeni eklenen özelliklerden dolayı model daha karmaşık bir hâle gelmiştir ve önceki modelde uygulanan optimizasyonlara rağmen durum uzayı katlarca büyümüştür:
 > 4 konteyner = 275,346,465,625  
 > 5 konteyner = 2,429,362,434,991   
 > 6 konteyner = 10,369,025,507,125   
@@ -201,7 +197,7 @@ Fakat yeni eklediğimiz özelliklerden dolayı modelimiz daha da karışık bir 
         return state
 ```
 
-Durum uzayının bu kadar büyümesinin yarattığı problemleri gidermek adına iki tane çözüme başvurdum. Birincisi 0'larla dolu bir durum matrisi kullanmaktansa sadece görülmüş ve öğrenilmiş durumların bulunduğu bir dictionary kullanma kararı verdim. Bu dictionary'de bulunmayan bir durumla karşılaşıldığında da model rastgele legal bir eylem yaparak ilerlemeye çalışacaktır.
+Durum uzayının bu kadar büyümesinin yarattığı problemleri azaltmak adına iki çözüme başvurulmuştur. Birincisi, 0'larla dolu büyük bir durum matrisi kullanmak yerine yalnızca görülmüş durumların bulunduğu bir dictionary kullanmaktır. Bu dictionary'de bulunmayan bir durumla karşılaşıldığında, o durum için sıfırlardan oluşan yeni bir Q-değerleri dizisi oluşturulmaktadır.
 
 ```
     def get_q_values(state): ### Get the Q-values for a state
@@ -242,7 +238,7 @@ Durum uzayının bu kadar büyümesinin yarattığı problemleri gidermek adına
 
         return terminated
 ```
-İkinci çözüm ise başlangıç durumunu rastgele shuffle kullanarak oluşturmaktansa çözülmesi imkansız senaryoları elemek adına çözümü oluşturup legal adımlarla geri ilerleyerek başlangıç durumunu oluşturmak oldu. Bu sayede öğrenim hem öğrenim yapılabilecek senaryo miktarı azaltılmış hem de oluşan senaryoların çözülebilir olmasını garanti ederek modelin her türlü verimli öğrenim yapabilmesini sağlamıştır.
+İkinci çözüm ise başlangıç durumunu rastgele shuffle kullanarak oluşturmak yerine, çözümü oluşturup legal adımlarla geriye doğru ilerleyerek başlangıç durumunu oluşturmaktır. Bu sayede çözülemez senaryolar elenmiş, oluşturulan senaryoların çözülebilir olması garanti edilmiş ve modelin daha verimli öğrenim yapabilmesi sağlanmıştır.
 
 ```
     def generate_scenario(): ### Generate a guaranteed possible scenario
@@ -354,7 +350,7 @@ Durum uzayının bu kadar büyümesinin yarattığı problemleri gidermek adına
 ```
 
 Q-Learning güncellemesi standart formülle yapılmaktadır:
-Q(s, a) = (1 - _α_) \* Q(s, a) + _α_ \* (_r_ + _γ_ \* max(Q(s')))
+Q(s, a) = (1 - _α_) \* Q(s, a) + _α_ \* (_r_ + _γ_ \* max(Q(s'))) 
 
 s : Şu anki durum\
 a : Şu anki eylem\
@@ -369,7 +365,7 @@ _r_ : reward (bu durumdaki alınan ödül)
         Sorter.get_q_values(old_state)[Sorter.action] = (1 - Sorter.learning_rate) * old_value + Sorter.learning_rate * (reward + Sorter.discount_factor * next_value)
 ```
 
-Eylem seçimi için Epsilon Greedy algoritmasından yararlanacağız. Bu algoritmada verilen bir _ε_ değerine oranla model ya öğrendiği bilgiler arasından en optimal olanı yapar ya da rastgele eylemler gerçekleştirerek yeni bilgi edinmeye çalışır.
+Eylem seçimi için Epsilon Greedy algoritmasından yararlanılmaktadır. Bu algoritmada verilen bir _ε_ değerine göre model ya öğrendiği bilgiler arasından en optimal görünen eylemi seçer ya da rastgele eylemler gerçekleştirerek yeni bilgi edinmeye çalışır.
 
 _ε_ : Epsilon [0.95 -> 0.01, Decay rate = 0.0025%]
 
@@ -382,4 +378,19 @@ _ε_ : Epsilon [0.95 -> 0.01, Decay rate = 0.0025%]
 
 
 ## Eğitim Süreci ve Sonuçlar
-Eğitim süreci sırasında yaşanan en büyük problem, yeni modelin kompleksitelerinden dolayı eğitim sürecinin uzamasıydı. Yeni eklenen değişkenlerden ötürü modelin yeni versiyonu öğrenme konusunda öncesi kadar verimli değil ve öğrenebilmek adına çok daha fazla episode'a (bölüme) ihtiyaç duyuyor. Fakat bunlara rağmen yapılan optimizasyonlar sayesinde gerçekten belirgin bir öğrenim gözlemleyebiliyoruz ve ödül grafiği tutarlı bir şekilde iyileşme gösteriyor.
+Eğitim süreci sırasında yaşanan en büyük problem, yeni modelin karmaşıklığından dolayı eğitim sürecinin uzamasıdır. Yeni eklenen değişkenlerden ötürü modelin güncel versiyonu, önceki versiyon kadar hızlı öğrenememekte ve başarılı sonuçlar için daha fazla episode'a (bölüme) ihtiyaç duymaktadır. Buna rağmen yapılan optimizasyonlar sayesinde belirgin bir öğrenim gözlemlenebilmekte ve ödül grafiği tutarlı bir şekilde iyileşme göstermektedir.
+
+<img width="1200" height="600" alt="Figure_1" src="https://github.com/user-attachments/assets/5cd72e59-be92-49ab-873f-4245ee0a3bef" />
+
+<img width="1200" height="600" alt="Figure_2" src="https://github.com/user-attachments/assets/a3c10961-8fba-4d7f-be7b-e5912009af96" />
+
+<img width="340" height="400" alt="output1" src="https://github.com/user-attachments/assets/4fd12652-a666-4028-a36f-0e1305499783" />
+<img width="700" height="400" alt="output2" src="https://github.com/user-attachments/assets/96487793-1614-468c-a21e-d7043e5f078c" />
+<img width="700" height="400" alt="output3" src="https://github.com/user-attachments/assets/05aa98d1-027e-4396-8a67-6a4714c2f685" />
+<img width="700" height="400" alt="output4" src="https://github.com/user-attachments/assets/a82fc993-ab92-4fbc-92e0-7b76711f97a0" />
+<img width="700" height="400" alt="output5" src="https://github.com/user-attachments/assets/4809ed1a-e035-4784-bbc5-2fbbc1a4fd4a" />
+
+
+
+
+
