@@ -384,7 +384,7 @@ Eğitim süreci sırasında yaşanan en büyük problem, yeni modelin karmaşık
 
 <img width="1200" height="600" alt="Figure_2" src="https://github.com/user-attachments/assets/a3c10961-8fba-4d7f-be7b-e5912009af96" />
 
-<img width="340" height="400" alt="output1" src="https://github.com/user-attachments/assets/4fd12652-a666-4028-a36f-0e1305499783" />
+<img width="700" height="400" alt="output1" src="https://github.com/user-attachments/assets/4fd12652-a666-4028-a36f-0e1305499783" />
 <img width="700" height="400" alt="output2" src="https://github.com/user-attachments/assets/96487793-1614-468c-a21e-d7043e5f078c" />
 <img width="700" height="400" alt="output3" src="https://github.com/user-attachments/assets/05aa98d1-027e-4396-8a67-6a4714c2f685" />
 <img width="700" height="400" alt="output4" src="https://github.com/user-attachments/assets/a82fc993-ab92-4fbc-92e0-7b76711f97a0" />
