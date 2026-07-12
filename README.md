@@ -25,14 +25,18 @@ Düzenleyici, her adımda 4 + 12 = 16 adet farklı eylemden birini gerçekleşti
 - 4-15: Limanlar arası konteyner taşıma (4-6: Birinci limandan ikinci/geçici/toksik limana taşı, 7-9: İkinci limandan birinci/geçici/toksik limana taşı, 10-12: Geçici limandan birinci/ikinci/toksik limana taşı, 13-15: Toksik limandan birinci/ikinci/geçici limana taşı)
 
 ```
-def can_place_to_port(container, port_id): ### If this container can legally be placed on this port
+    def can_place_to_port(container, port_id): ### If this container can legally be placed on this port
         if len(Sorter.ports[port_id]) >= Sorter.port_limit(port_id):
             return False
-        elif not Sorter.can_stack_on_port(container, port_id): ###
+        elif not Sorter.can_stack_on_port(container, port_id):
+            return False
+        elif not Sorter.is_toxic(container) and port_id == 3: ### Don't allow normal containers into toxic port
             return False
         return True
+
+    ...
         
-def place_to_port(port_id):
+    def place_to_port(port_id):
         if len(Sorter.cargo) > 0 and Sorter.can_place_to_port(Sorter.cargo[0], port_id):
             container = Sorter.cargo.pop(0)
             Sorter.ports[port_id].append(container) ### Takes the first element of cargo and places it into the port
@@ -76,17 +80,14 @@ Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner ha
 - Eğer bütün limanlardaki konteynerler düzenli bir şekilde yerleştirilmiş ve geçici liman boş bırakıldıysa +1000 puan (Düzenleyicininn görevi tamamlanmıştır.)
 
 ```
-def container_check():
-    reward = 0
-    
-    ### Penalize keeping cargo in the queue (encourage placing)
-    reward -= len(Sorter.cargo)
-    
-    ### If all the cargo are placed correctly
-    if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
-        if False not in [Sorter.is_sorted(n) for n in range(3)]:
-            reward += 1000
-    return reward
+    def container_check():
+        reward = 0
+
+        ### If all the cargo are placed correctly
+        if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
+            if False not in [Sorter.is_sorted(n) and Sorter.is_size_sorted(n) and Sorter.is_toxic_sorted(n) for n in range(4)]:
+                reward += 1000
+        return reward
 ```
 
 ## Model Yapısı
@@ -144,7 +145,9 @@ Fakat yeni eklediğimiz özelliklerden dolayı modelimiz daha da karışık bir 
     def can_place_to_port(container, port_id): ### If this container can legally be placed on this port
         if len(Sorter.ports[port_id]) >= Sorter.port_limit(port_id):
             return False
-        elif not Sorter.can_stack_on_port(container, port_id): ###
+        elif not Sorter.can_stack_on_port(container, port_id):
+            return False
+        elif not Sorter.is_toxic(container) and port_id == 3: ### Don't allow normal containers into toxic port
             return False
         return True
 
@@ -198,39 +201,157 @@ Fakat yeni eklediğimiz özelliklerden dolayı modelimiz daha da karışık bir 
         return state
 ```
 
-Bu yüzden de 0'larla dolu bir durum matrisi kullanmaktansa sadece görülmüş ve öğrenilmiş durumların bulunduğu bir dictionary kullanma kararı verdim. Bu dictionary'de bulunmayan bir durumla karşılaşıldığında da model rastgele legal bir eylem yaparak ilerlemeye çalışacaktır.
+Durum uzayının bu kadar büyümesinin yarattığı problemleri gidermek adına iki tane çözüme başvurdum. Birincisi 0'larla dolu bir durum matrisi kullanmaktansa sadece görülmüş ve öğrenilmiş durumların bulunduğu bir dictionary kullanma kararı verdim. Bu dictionary'de bulunmayan bir durumla karşılaşıldığında da model rastgele legal bir eylem yaparak ilerlemeye çalışacaktır.
 
 ```
     def get_q_values(state): ### Get the Q-values for a state
         if state not in Sorter.q_table:
             Sorter.q_table[state] = np.zeros(Sorter.num_of_actions)
         return Sorter.q_table[state]
-```
-```
+
+   ...
+
     def step(learn = False):
         old_state = Sorter.get_current_state()
-        no_actions_available = old_state not in Sorter.q_table
         q_values = Sorter.get_q_values(old_state)
-        no_actions_available = no_actions_available or not np.any(q_values != 0)
+        
+        if rnd.uniform(0, 1) < Sorter.epsilon:  ### Explore
+            Sorter.action = rnd.randrange(Sorter.num_of_actions)
+        else:                                   ### Exploit
+            Sorter.action = np.argmax(q_values)
 
-        if no_actions_available:               ### If there is no learned action for this state
-            reward = 0
-            attempt_count = 0
-            attempt_reward = -10
-            while attempt_reward == -10:
-                Sorter.action = rnd.randrange(Sorter.num_of_actions)
-                attempt_reward = Sorter.act()
-                reward += attempt_reward
-                if attempt_reward == -10:
-                    attempt_count += 1
-            reward += 10 * attempt_count       ### Offset the illegal random attempts
-        else:
-            if rnd.uniform(0, 1) < Sorter.epsilon:  ### Explore
-                Sorter.action = rnd.randrange(Sorter.num_of_actions)
-            else:                                   ### Exploit
-                Sorter.action = np.argmax(q_values)
+        reward = Sorter.act() ### Reward from the Sorter's action
+
+        reward += Sorter.container_check() ### Reward from the current state of the ports
+        Sorter.reward += reward
+
+        terminated = (reward >= 200) ### Terminate if the sorting is complete
+
+        if learn:
+            if terminated:
+                next_value = 0
+            else:
+                next_value = np.max(Sorter.get_q_values(Sorter.get_current_state()))
+
+            Sorter.update_q_table(
+                old_state=old_state,
+                old_value=q_values[Sorter.action],
+                next_value=next_value,
+                reward=reward
+            )
+
+        return terminated
 ```
+İkinci çözüm ise başlangıç durumunu rastgele shuffle kullanarak oluşturmaktansa çözülmesi imkansız senaryoları elemek adına çözümü oluşturup legal adımlarla geri ilerleyerek başlangıç durumunu oluşturmak oldu. Bu sayede öğrenim hem öğrenim yapılabilecek senaryo miktarı azaltılmış hem de oluşan senaryoların çözülebilir olmasını garanti ederek modelin her türlü verimli öğrenim yapabilmesini sağlamıştır.
 
+```
+    def generate_scenario(): ### Generate a guaranteed possible scenario
+        containers = list(range(Sorter.number_of_containers))
+        for container in containers:
+            if rnd.uniform(0, 1) < Sorter.toxic_chance:
+                Sorter.toxic_containers.add(container)
+
+        while len(Sorter.toxic_containers) > Sorter.toxic_port_capacity:
+            Sorter.toxic_containers.remove(rnd.choice(list(Sorter.toxic_containers)))
+
+        if Sorter.toxic_chance > 0 and len(Sorter.toxic_containers) == 0:
+            Sorter.toxic_containers.add(rnd.choice(containers))
+
+        regular_containers = [container for container in containers if not Sorter.is_toxic(container)]
+        toxic_containers = [container for container in containers if Sorter.is_toxic(container)]
+
+        final_ports = [[],[],[],[]]
+
+        ### Build valid final ports
+        regular_containers.sort(reverse = True)
+        for container in regular_containers:
+            possible_ports = []
+
+            for port_id in [0,1]:
+                if len(final_ports[port_id]) < Sorter.port_capacity:
+                    possible_ports.append(port_id)
+
+            port_id = rnd.choice(possible_ports)
+            final_ports[port_id].append(container)
+
+        toxic_containers.sort(reverse = True)
+        for container in toxic_containers:
+            final_ports[3].append(container)
+
+
+        for port_id in [0,1,3]:
+            sizes = []
+
+            for _ in range(len(final_ports[port_id])):
+                sizes.append(rnd.randrange(3))
+
+            sizes.sort(reverse = True)
+
+            for i in range(len(final_ports[port_id])):
+                container = final_ports[port_id][i]
+                Sorter.container_sizes[container] = sizes[i]
+
+        Sorter.ports = [
+            final_ports[0][:],
+            final_ports[1][:],
+            [],
+            final_ports[3][:]
+        ]
+
+        ### Scramble the solution using legal moves ###
+        reverse_move_count = rnd.randrange(10, 50)
+        reverse_moves_done = 0
+        attempt_count = 0
+        last_move = None
+
+        while reverse_moves_done < reverse_move_count and attempt_count < reverse_move_count * 20:
+            moves = []
+            for source_id in range(Sorter.total_port_count):
+                if len(Sorter.ports[source_id]) == 0:
+                    continue
+
+                container = Sorter.ports[source_id][-1]
+
+                for target_id in range(Sorter.total_port_count):
+                    if source_id == target_id:
+                        continue
+
+                    ### Avoid immediately undoing the last random move
+                    if last_move != None and source_id == last_move[1] and target_id == last_move[0]:
+                        continue
+
+                    if Sorter.can_place_to_port(container, target_id):
+                        moves.append((source_id, target_id))
+
+            if len(moves) == 0:
+                last_move = None
+                attempt_count += 1
+                continue
+
+            source_id, target_id = rnd.choice(moves)
+
+            container = Sorter.ports[source_id].pop(-1)
+            Sorter.ports[target_id].append(container)
+
+            last_move = (source_id, target_id)
+            reverse_moves_done += 1
+            attempt_count += 1
+
+        while True: ### Move everything back to the cargo
+            possible_ports = []
+
+            for port_id in range(Sorter.total_port_count):
+                if len(Sorter.ports[port_id]) > 0:
+                    possible_ports.append(port_id)
+
+            if len(possible_ports) == 0:
+                break
+
+            port_id = rnd.choice(possible_ports)
+            container = Sorter.ports[port_id].pop(-1)
+            Sorter.cargo.insert(0, container)
+
+```
 
 Q-Learning güncellemesi standart formülle yapılmaktadır:
 Q(s, a) = (1 - _α_) \* Q(s, a) + _α_ \* (_r_ + _γ_ \* max(Q(s')))
@@ -244,8 +365,8 @@ _γ_ : discount factor (indirim faktörü) [0.95]\
 _r_ : reward (bu durumdaki alınan ödül)
 
 ```
-def update_q_table(old_state, old_value, next_value, reward):
-        Sorter.q_table[old_state, Sorter.action] = (1 - Sorter.learning_rate) * old_value + Sorter.learning_rate * (reward + Sorter.discount_factor * next_value)
+    def update_q_table(old_state, old_value, next_value, reward):
+        Sorter.get_q_values(old_state)[Sorter.action] = (1 - Sorter.learning_rate) * old_value + Sorter.learning_rate * (reward + Sorter.discount_factor * next_value)
 ```
 
 Eylem seçimi için Epsilon Greedy algoritmasından yararlanacağız. Bu algoritmada verilen bir _ε_ değerine oranla model ya öğrendiği bilgiler arasından en optimal olanı yapar ya da rastgele eylemler gerçekleştirerek yeni bilgi edinmeye çalışır.
@@ -253,12 +374,12 @@ Eylem seçimi için Epsilon Greedy algoritmasından yararlanacağız. Bu algorit
 _ε_ : Epsilon [0.95 -> 0.01, Decay rate = 0.0025%]
 
 ```
-if rnd.uniform(0, 1) < Sorter.epsilon:
-        Sorter.action = rnd.randrange(Sorter.num_of_actions)
-else:
-        Sorter.action = np.argmax(Sorter.q_table[old_state])
+        if rnd.uniform(0, 1) < Sorter.epsilon:  ### Explore
+            Sorter.action = rnd.randrange(Sorter.num_of_actions)
+        else:                                   ### Exploit
+            Sorter.action = np.argmax(q_values)
 ```
 
 
 ## Eğitim Süreci ve Sonuçlar
-Eğitim süreci sırasında yaşanan en büyük problem, yeni modelin kompleksitelerinden dolayı eğitim sürecinin uzamasıydı. Olabilecek daha fazla muhtemel durum olduğundan dolayı eski modele göre daha fazla episode (bölüm) eğitmek gerekiyordu ve bu eğitim süreçleri de çok daha uzun sürüyordu. Bununla birlikte de eski modelde de karşılaşılan hamle tekrarlama problemi tekrardan ortaya çıkmaya başlamıştı.
+Eğitim süreci sırasında yaşanan en büyük problem, yeni modelin kompleksitelerinden dolayı eğitim sürecinin uzamasıydı. Yeni eklenen değişkenlerden ötürü modelin yeni versiyonu öğrenme konusunda öncesi kadar verimli değil ve öğrenebilmek adına çok daha fazla episode'a (bölüme) ihtiyaç duyuyor. Fakat bunlara rağmen yapılan optimizasyonlar sayesinde gerçekten belirgin bir öğrenim gözlemleyebiliyoruz ve ödül grafiği tutarlı bir şekilde iyileşme gösteriyor.
