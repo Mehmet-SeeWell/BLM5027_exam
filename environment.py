@@ -3,19 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from container_sorter import Sorter
 
-max_step_count = 500
+max_step_count = 100
 
 def moving_average(data, window=500): ### Used to calculate the graph post-training
     data = np.convolve(np.asarray(data, dtype=float), np.ones(window) / window, mode="valid")
     return data
 
 def train_sorter():
-    epoch_count = 60000
-    per = 2500 ### Number of episodes per report
+    epoch_count = 1_000_000
+    per = 10_000 ### Number of episodes per report
     rewards = []
-
-    Sorter.reset_q_table(10)
-    print(f"Q-Table set - Container Amount: {Sorter.number_of_containers}, Port Capacity: {Sorter.port_capacity}, Temporary Port Capacity: {Sorter.temp_port_capacity}, Number of total states: {Sorter.num_of_states}")
 
     ### Set the map
     print("Training Started!")
@@ -35,10 +32,10 @@ def train_sorter():
             ... ### Truncated
 
         rewards.append(Sorter.reward)
-        Sorter.epsilon = max(0.01, Sorter.epsilon * 0.99995) ### Epsilon decay
+        Sorter.epsilon = max(0.01, Sorter.epsilon * 0.9999975) ### Epsilon decay
 
         if n==0 or (n+1) % per == 0: ### Report the current progress
-            print(f"Epoch {n+1} - Average Reward: {np.mean(rewards[-per:]):.3f}, Epsilon value: {Sorter.epsilon:.3f}, Any Terminations?: {any_terminations}")
+            print(f"Epoch {n+1:,} - Average Reward: {np.mean(rewards[-per:]):.3f}, Epsilon value: {Sorter.epsilon:.3f}, Any Terminations?: {any_terminations}")
             if any_terminations:
                 any_terminations = False
 
@@ -80,5 +77,8 @@ def test_sorter():
         print("Testing failed")
         input()
 
+
+Sorter.reset_q_table(6)
+print(f"Q-Table set - Container Amount: {Sorter.number_of_containers}, Port Capacity: {Sorter.port_capacity}, Temporary Port Capacity: {Sorter.temp_port_capacity}, Toxic Port Capacity: {Sorter.toxic_port_capacity}, Number of total states: {Sorter.num_of_states}")
 train_sorter()
 test_sorter()
