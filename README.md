@@ -99,100 +99,132 @@ Fakat yeni eklenen özelliklerden dolayı model daha karmaşık bir hâle gelmi�
 > 5 konteyner = 2,429,362,434,991   
 > 6 konteyner = 10,369,025,507,125   
 > 7 konteyner = 47,185,972,290,787  
-> 8 konteyner = 136,818,247,206,193  
+> 8 konteyner = 136,818,247,206,193
+
+Bu yüzden eklenen yeni durum modeli, konteynerlerin tam fiziksel konumunu doğrudan kodlamak yerine, karar verme açısından önemli olan aciliyet, yerleştirme uygunluğu, port doluluğu, öncelik ihlali ve en yakın çıkış konteynerinin konumu gibi özet özellikleri kullanmaktadır. Bu yaklaşım tam fiziksel temsil kadar ayrıntılı değildir; ancak durum uzayını daha anlamlı kategorilere ayırarak öğrenme sürecinde genelleme sağlamaktadır. Özellikle Port 1 ve Port 2’nin simetrik kabul edilmesi, modelin aynı yapısal durumu iki kez öğrenmesini engelleyerek eğitim verimliliğini artırmaktadır
 
 ```
-    def container_size(container): ### The size value of a container
-        return Sorter.container_sizes[container]
+     def all_containers():
+        containers = list(Sorter.cargo)
 
-    def is_toxic(container): ### Whether a container has toxic material
-        return container in Sorter.toxic_containers
+        for port_id in range(Sorter.total_port_count):
+            containers += Sorter.ports[port_id]
 
-    def port_limit(n): ### The capacity limit of a port
-        return [Sorter.port_capacity, Sorter.port_capacity, Sorter.temp_port_capacity, Sorter.toxic_port_capacity][n]
+        return containers
 
-    def is_sorted(n): ### If a port is arranged correctly (lower priority above higher priority)
-        for i in range(len(Sorter.ports[n]) - 1):
-            if Sorter.ports[n][i] < Sorter.ports[n][i + 1]:
-                return False
-        return True
-
-    def is_size_sorted(n): ### If a port is arranged correctly by size (same or smaller above larger)
-        for i in range(len(Sorter.ports[n]) - 1):
-            if Sorter.container_size(Sorter.ports[n][i]) < Sorter.container_size(Sorter.ports[n][i + 1]):
-                return False
-        return True
-
-    def is_toxic_sorted(n): ### If toxic containers are kept away from regular ports
-        for container in Sorter.ports[n]:
-            if n == 3 and not Sorter.is_toxic(container):
-                return False
-            if n != 3 and n != 2 and Sorter.is_toxic(container):
-                return False
-        return True
-
-    def can_stack_on_port(container, port_id): ### If this container can be stacked on this port by size
-        if len(Sorter.ports[port_id]) == 0:
-            return True
-
-        top_box = Sorter.ports[port_id][-1]
-        return Sorter.container_size(container) <= Sorter.container_size(top_box)
-
-    def can_place_to_port(container, port_id): ### If this container can legally be placed on this port
-        if len(Sorter.ports[port_id]) >= Sorter.port_limit(port_id):
-            return False
-        elif not Sorter.can_stack_on_port(container, port_id):
-            return False
-        elif not Sorter.is_toxic(container) and port_id == 3: ### Don't allow normal containers into toxic port
-            return False
-        return True
-
-    def incoming_state(): ### The current state value of the incoming container
+    def incoming_state():
         if len(Sorter.cargo) == 0:
-            return Sorter.number_of_containers * 3 * 2
+            return 0 ### Cargo empty
 
         container = Sorter.cargo[0]
-        size = Sorter.container_size(container)
         toxic_flag = int(Sorter.is_toxic(container))
 
-        return (container * 3 + size) * 2 + toxic_flag
+        return 1 + toxic_flag * 3 + container
 
-    def port_state(n): ### The current state value of a port
-        port = Sorter.ports[n]
-        if len(port) == 0:
+    def top_location():
+        containers = Sorter.all_containers()
+
+        if len(containers) == 0:
             return 0
 
-        height = len(port)
-        top_box = port[-1]
-        top_size = Sorter.container_size(top_box)
-        top_toxic_flag = int(Sorter.is_toxic(top_box))
-        sorted_flag = int(Sorter.is_sorted(n))
-        stack_flag = 1
+        next_exit = min(containers)
 
-        if len(Sorter.cargo) > 0:
-            stack_flag = int(Sorter.can_stack_on_port(Sorter.cargo[0], n))
+        if next_exit in Sorter.cargo:
+            return 0 ### Still in the cargo queue
 
-        return 1 + (
-            (((((height - 1) * Sorter.number_of_containers + top_box) * 3 + top_size) * 2 + sorted_flag) * 2 + stack_flag) * 2 + top_toxic_flag
-        )
+        for port_id in range(Sorter.total_port_count):
+            if next_exit in Sorter.ports[port_id]:
+                depth = len(Sorter.ports[port_id]) - 1 - Sorter.ports[port_id].index(next_exit)
 
-    def get_current_state(): ### Find the current state of the system
+                if depth == 0:
+                    return 1 ### On top of a port
+                elif depth == 1:
+                    return 2 ### Buried under one container
+                return 3 ### Buried under two or more
+
+        return 0
+
+    def placement_relation(port_id): ### What placing the incoming container here would do to the exit order
+        if len(Sorter.cargo) == 0 or len(Sorter.ports[port_id]) == 0:
+            return 0 ### Nothing to compare against
+        elif Sorter.cargo[0] < Sorter.ports[port_id][-1]:
+            return 1 ### Safe, the incoming container leaves before the current top
+        return 2 ### Buries a container that must leave earlier
+
+    def top_is_next_exit(port_id): ### If the top container of this port must leave before everything else
+        if len(Sorter.ports[port_id]) == 0:
+            return 0
+
+        return int(Sorter.ports[port_id][-1] == min(Sorter.all_containers()))
+
+    def fullness_state(port_id):
+        height = len(Sorter.ports[port_id])
+        limit = Sorter.port_limit(port_id)
+
+        if height == 0:
+            return 0 ### Empty
+        elif height == limit:
+            return 3 ### Full
+        elif height == limit - 1:
+            return 2 ### One slot left
+        return 1 ### Room to spare
+
+    def can_place_cargo(port_id):
+        return int(len(Sorter.cargo) > 0 and Sorter.can_place_to_port(Sorter.cargo[0], port_id))
+
+    def main_port_state(port_id):
+        can_place = Sorter.can_place_cargo(port_id)
+        relation = Sorter.placement_relation(port_id)
+        top_urgent = Sorter.top_is_next_exit(port_id)
+        top_toxic = int(len(Sorter.ports[port_id]) > 0 and Sorter.is_toxic(Sorter.ports[port_id][-1]))
+        fullness = Sorter.fullness_state(port_id)
+        violation = int(not Sorter.is_sorted(port_id)) ### Wrong order
+
+        return ((((can_place * 3 + relation) * 2 + top_urgent) * 2 + top_toxic) * 4 + fullness) * 2 + violation
+
+    def toxic_port_state():
+        can_place = Sorter.can_place_cargo(3)
+        relation = Sorter.placement_relation(3)
+        top_urgent = Sorter.top_is_next_exit(3)
+        fullness = Sorter.fullness_state(3)
+        violation = int(not Sorter.is_sorted(3)) ### Wrong order
+
+        return (((can_place * 3 + relation) * 2 + top_urgent) * 4 + fullness) * 2 + violation
+
+    def temp_port_state():
+        can_place = Sorter.can_place_cargo(2)
+        relation = Sorter.placement_relation(2)
+
+        height = len(Sorter.ports[2])
+        if height == 0:
+            load = 0 ### Empty
+        elif height == 1:
+            load = 1 ### One container
+        else:
+            load = 2 ### Two or more containers
+
+        return (can_place * 3 + relation) * 3 + load
+
+    def get_current_state():
         incoming = Sorter.incoming_state()
+        top_location = Sorter.top_location()
 
-        main_port_states = 1 + Sorter.number_of_containers * Sorter.port_capacity * 3 * 2 * 2 * 2
-        temp_port_states = 1 + Sorter.number_of_containers * Sorter.temp_port_capacity * 3 * 2 * 2 * 2
-        toxic_port_states = 1 + Sorter.number_of_containers * Sorter.toxic_port_capacity * 3 * 2 * 2 * 2
+        port_1_state = Sorter.main_port_state(0)
+        port_2_state = Sorter.main_port_state(1)
 
-        port_1_state = Sorter.port_state(0)
-        port_2_state = Sorter.port_state(1)
-        temp_state = Sorter.port_state(2)
-        toxic_state = Sorter.port_state(3)
+        Sorter.ports_swapped = port_2_state < port_1_state
+        if Sorter.ports_swapped:
+            port_1_state, port_2_state = port_2_state, port_1_state
+
+        temp_state = Sorter.temp_port_state()
+        toxic_state = Sorter.toxic_port_state()
 
         state = incoming
-        state = state * main_port_states + port_1_state
-        state = state * main_port_states + port_2_state
-        state = state * temp_port_states + temp_state
-        state = state * toxic_port_states + toxic_state
+        state = state * 4 + top_location
+        state = state * 192 + port_1_state
+        state = state * 192 + port_2_state
+        state = state * 18 + temp_state
+        state = state * 96 + toxic_state
 
         return state
 ```
