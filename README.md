@@ -119,7 +119,7 @@ Bu yüzden eklenen yeni durum modeli, konteynerlerin tam fiziksel konumunu doğr
         container = Sorter.cargo[0]
         toxic_flag = int(Sorter.is_toxic(container))
 
-        return 1 + toxic_flag * 3 + container
+        return 1 + toxic_flag * Sorter.number_of_containers + container
 
     def top_location():
         containers = Sorter.all_containers()
