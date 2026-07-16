@@ -36,7 +36,7 @@ class Sorter:
         Sorter.temp_port_capacity = (Sorter.port_capacity + 1)//2 ### 3:1, 4:1, 5:2, 6:2, 7:2, 8:2
         Sorter.toxic_port_capacity = (Sorter.number_of_containers + 1)//2 ### 3:2, 4:2, 5:3, 6:3, 7:4, 8:4
 
-        incoming_states = 7 ### Empty hand, or toxic flag (2) x urgency (3)
+        incoming_states = 1 + Sorter.number_of_containers * 2 ### Empty cargo (1) + incoming container ID for non-toxic/toxic (n*2)
         exit_location_states = 4 ### Next-to-exit container: in cargo, on top, under one, under two or more
         main_port_states = 192 ### can_place (2) x relation (3) x top_urgent (2) x top_toxic (2) x fullness (4) x violation (2)
         temp_port_states = 18 ### can_place (2) x relation (3) x load (3)
@@ -254,7 +254,7 @@ class Sorter:
         container = Sorter.cargo[0]
         toxic_flag = int(Sorter.is_toxic(container))
 
-        return 1 + toxic_flag * 3 + container
+        return 1 + toxic_flag * Sorter.number_of_containers + container
 
     def top_location():
         containers = Sorter.all_containers()
