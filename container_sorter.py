@@ -28,6 +28,7 @@ class Sorter:
     total_port_count = 4
     num_of_actions = total_port_count + total_port_count * (total_port_count - 1)
     q_table = {}
+    ports_swapped = False ### Whether port 1 and port 2 were mirrored while calculating the current state
 
     def reset_q_table(number_of_containers):
         Sorter.number_of_containers = number_of_containers
@@ -35,17 +36,19 @@ class Sorter:
         Sorter.temp_port_capacity = (Sorter.port_capacity + 1)//2 ### 3:1, 4:1, 5:2, 6:2, 7:2, 8:2
         Sorter.toxic_port_capacity = (Sorter.number_of_containers + 1)//2 ### 3:2, 4:2, 5:3, 6:3, 7:4, 8:4
 
-        incoming_states = Sorter.number_of_containers * 3 * 2 + 1
-        main_port_states = 1 + Sorter.number_of_containers * Sorter.port_capacity * 3 * 2 * 2 * 2
-        temp_port_states = 1 + Sorter.number_of_containers * Sorter.temp_port_capacity * 3 * 2 * 2 * 2
-        toxic_port_states = 1 + Sorter.number_of_containers * Sorter.toxic_port_capacity * 3 * 2 * 2 * 2
+        incoming_states = 7 ### Empty hand, or toxic flag (2) x urgency (3)
+        exit_location_states = 4 ### Next-to-exit container: in cargo, on top, under one, under two or more
+        main_port_states = 192 ### can_place (2) x relation (3) x top_urgent (2) x top_toxic (2) x fullness (4) x violation (2)
+        temp_port_states = 18 ### can_place (2) x relation (3) x load (3)
+        toxic_port_states = 96 ### can_place (2) x relation (3) x top_urgent (2) x fullness (4) x violation (2)
 
-        Sorter.num_of_states = incoming_states * main_port_states * main_port_states * temp_port_states * toxic_port_states
+        Sorter.num_of_states = incoming_states * exit_location_states * main_port_states * main_port_states * temp_port_states * toxic_port_states
 
         Sorter.q_table = {}
 
     def generate_scenario(): ### Generate a guaranteed possible scenario
         containers = list(range(Sorter.number_of_containers))
+
         for container in containers:
             if rnd.uniform(0, 1) < Sorter.toxic_chance:
                 Sorter.toxic_containers.add(container)
@@ -77,7 +80,6 @@ class Sorter:
         for container in toxic_containers:
             final_ports[3].append(container)
 
-
         for port_id in [0,1,3]:
             sizes = []
 
@@ -90,6 +92,7 @@ class Sorter:
                 container = final_ports[port_id][i]
                 Sorter.container_sizes[container] = sizes[i]
 
+        ### Start from the solved position
         Sorter.ports = [
             final_ports[0][:],
             final_ports[1][:],
@@ -97,46 +100,67 @@ class Sorter:
             final_ports[3][:]
         ]
 
-        ### Scramble the solution using legal moves ###
         reverse_move_count = rnd.randrange(10, 50)
         reverse_moves_done = 0
+        cargo_moves_done = 0
         attempt_count = 0
         last_move = None
 
-        while reverse_moves_done < reverse_move_count and attempt_count < reverse_move_count * 20:
-            moves = []
+        while attempt_count < reverse_move_count * 50:
+            occupied_ports = []
+
+            for port_id in range(Sorter.total_port_count):
+                if len(Sorter.ports[port_id]) > 0:
+                    occupied_ports.append(port_id)
+
+            if len(occupied_ports) == 0:
+                break
+
+            port_moves = []
+            cargo_moves = []
+
+            ### Legal port-to-port scrambling moves
+            if reverse_moves_done < reverse_move_count:
+                for source_id in range(Sorter.total_port_count):
+                    if len(Sorter.ports[source_id]) == 0:
+                        continue
+
+                    container = Sorter.ports[source_id][-1]
+
+                    for target_id in range(Sorter.total_port_count):
+                        if source_id == target_id:
+                            continue
+
+                        if Sorter.can_place_to_port(container, target_id):
+                            port_moves.append((source_id, target_id))
+
+            ### Reverse cargo moves: move top container of a port back to cargo
             for source_id in range(Sorter.total_port_count):
-                if len(Sorter.ports[source_id]) == 0:
-                    continue
+                if len(Sorter.ports[source_id]) > 0:
+                    cargo_moves.append(source_id)
 
-                container = Sorter.ports[source_id][-1]
+            if len(port_moves) > 0 and rnd.uniform(0, 1) < 0.75:
+                source_id, target_id = rnd.choice(port_moves)
 
-                for target_id in range(Sorter.total_port_count):
-                    if source_id == target_id:
-                        continue
+                container = Sorter.ports[source_id].pop(-1)
+                Sorter.ports[target_id].append(container)
 
-                    ### Avoid immediately undoing the last random move
-                    if last_move != None and source_id == last_move[1] and target_id == last_move[0]:
-                        continue
+                last_move = (source_id, target_id)
+                reverse_moves_done += 1
 
-                    if Sorter.can_place_to_port(container, target_id):
-                        moves.append((source_id, target_id))
+            else:
+                source_id = rnd.choice(cargo_moves)
 
-            if len(moves) == 0:
+                container = Sorter.ports[source_id].pop(-1)
+                Sorter.cargo.insert(0, container)
+
                 last_move = None
-                attempt_count += 1
-                continue
+                cargo_moves_done += 1
 
-            source_id, target_id = rnd.choice(moves)
-
-            container = Sorter.ports[source_id].pop(-1)
-            Sorter.ports[target_id].append(container)
-
-            last_move = (source_id, target_id)
-            reverse_moves_done += 1
             attempt_count += 1
 
-        while True: ### Move everything back to the cargo
+        ### If anything is still left in ports, move it back to cargo safely
+        while True:
             possible_ports = []
 
             for port_id in range(Sorter.total_port_count):
@@ -149,6 +173,9 @@ class Sorter:
             port_id = rnd.choice(possible_ports)
             container = Sorter.ports[port_id].pop(-1)
             Sorter.cargo.insert(0, container)
+            cargo_moves_done += 1
+
+        Sorter.ports = [[],[],[],[]]
 
     def start_scenario():
         Sorter.cargo = []
@@ -212,52 +239,127 @@ class Sorter:
             return False
         return True
 
-    def incoming_state(): ### The current state value of the incoming container
+    def all_containers():
+        containers = list(Sorter.cargo)
+
+        for port_id in range(Sorter.total_port_count):
+            containers += Sorter.ports[port_id]
+
+        return containers
+
+    def incoming_state():
         if len(Sorter.cargo) == 0:
-            return Sorter.number_of_containers * 3 * 2
+            return 0 ### Cargo empty
 
         container = Sorter.cargo[0]
-        size = Sorter.container_size(container)
         toxic_flag = int(Sorter.is_toxic(container))
 
-        return (container * 3 + size) * 2 + toxic_flag
+        return 1 + toxic_flag * 3 + container
 
-    def port_state(n): ### The current state value of a port
-        port = Sorter.ports[n]
-        if len(port) == 0:
+    def top_location():
+        containers = Sorter.all_containers()
+
+        if len(containers) == 0:
             return 0
 
-        height = len(port)
-        top_box = port[-1]
-        top_size = Sorter.container_size(top_box)
-        top_toxic_flag = int(Sorter.is_toxic(top_box))
-        sorted_flag = int(Sorter.is_sorted(n))
-        stack_flag = 1
+        next_exit = min(containers)
 
-        if len(Sorter.cargo) > 0:
-            stack_flag = int(Sorter.can_stack_on_port(Sorter.cargo[0], n))
+        if next_exit in Sorter.cargo:
+            return 0 ### Still in the cargo queue
 
-        return 1 + (
-            (((((height - 1) * Sorter.number_of_containers + top_box) * 3 + top_size) * 2 + sorted_flag) * 2 + stack_flag) * 2 + top_toxic_flag
-        )
+        for port_id in range(Sorter.total_port_count):
+            if next_exit in Sorter.ports[port_id]:
+                depth = len(Sorter.ports[port_id]) - 1 - Sorter.ports[port_id].index(next_exit)
 
-    def get_current_state(): ### Find the current state of the system
+                if depth == 0:
+                    return 1 ### On top of a port
+                elif depth == 1:
+                    return 2 ### Buried under one container
+                return 3 ### Buried under two or more
+
+        return 0
+
+    def placement_relation(port_id): ### What placing the incoming container here would do to the exit order
+        if len(Sorter.cargo) == 0 or len(Sorter.ports[port_id]) == 0:
+            return 0 ### Nothing to compare against
+        elif Sorter.cargo[0] < Sorter.ports[port_id][-1]:
+            return 1 ### Safe, the incoming container leaves before the current top
+        return 2 ### Buries a container that must leave earlier
+
+    def top_is_next_exit(port_id): ### If the top container of this port must leave before everything else
+        if len(Sorter.ports[port_id]) == 0:
+            return 0
+
+        return int(Sorter.ports[port_id][-1] == min(Sorter.all_containers()))
+
+    def fullness_state(port_id):
+        height = len(Sorter.ports[port_id])
+        limit = Sorter.port_limit(port_id)
+
+        if height == 0:
+            return 0 ### Empty
+        elif height == limit:
+            return 3 ### Full
+        elif height == limit - 1:
+            return 2 ### One slot left
+        return 1 ### Room to spare
+
+    def can_place_cargo(port_id):
+        return int(len(Sorter.cargo) > 0 and Sorter.can_place_to_port(Sorter.cargo[0], port_id))
+
+    def main_port_state(port_id):
+        can_place = Sorter.can_place_cargo(port_id)
+        relation = Sorter.placement_relation(port_id)
+        top_urgent = Sorter.top_is_next_exit(port_id)
+        top_toxic = int(len(Sorter.ports[port_id]) > 0 and Sorter.is_toxic(Sorter.ports[port_id][-1]))
+        fullness = Sorter.fullness_state(port_id)
+        violation = int(not Sorter.is_sorted(port_id)) ### Wrong order
+
+        return ((((can_place * 3 + relation) * 2 + top_urgent) * 2 + top_toxic) * 4 + fullness) * 2 + violation
+
+    def toxic_port_state():
+        can_place = Sorter.can_place_cargo(3)
+        relation = Sorter.placement_relation(3)
+        top_urgent = Sorter.top_is_next_exit(3)
+        fullness = Sorter.fullness_state(3)
+        violation = int(not Sorter.is_sorted(3)) ### Wrong order
+
+        return (((can_place * 3 + relation) * 2 + top_urgent) * 4 + fullness) * 2 + violation
+
+    def temp_port_state():
+        can_place = Sorter.can_place_cargo(2)
+        relation = Sorter.placement_relation(2)
+
+        height = len(Sorter.ports[2])
+        if height == 0:
+            load = 0 ### Empty
+        elif height == 1:
+            load = 1 ### One container
+        else:
+            load = 2 ### Two or more containers
+
+        return (can_place * 3 + relation) * 3 + load
+
+    def get_current_state():
         incoming = Sorter.incoming_state()
+        top_location = Sorter.top_location()
 
-        main_port_states = 1 + Sorter.number_of_containers * Sorter.port_capacity * 3 * 2 * 2 * 2
-        temp_port_states = 1 + Sorter.number_of_containers * Sorter.temp_port_capacity * 3 * 2 * 2 * 2
-        toxic_port_states = 1 + Sorter.number_of_containers * Sorter.toxic_port_capacity * 3 * 2 * 2 * 2
+        port_1_state = Sorter.main_port_state(0)
+        port_2_state = Sorter.main_port_state(1)
 
-        port_1_state = Sorter.port_state(0)
-        port_2_state = Sorter.port_state(1)
-        temp_state = Sorter.port_state(2)
-        toxic_state = Sorter.port_state(3)
+        Sorter.ports_swapped = port_2_state < port_1_state
+        if Sorter.ports_swapped:
+            port_1_state, port_2_state = port_2_state, port_1_state
+
+        temp_state = Sorter.temp_port_state()
+        toxic_state = Sorter.toxic_port_state()
 
         state = incoming
-        state = state * main_port_states + port_1_state
-        state = state * main_port_states + port_2_state
-        state = state * temp_port_states + temp_state
-        state = state * toxic_port_states + toxic_state
+        state = state * 4 + top_location
+        state = state * 192 + port_1_state
+        state = state * 192 + port_2_state
+        state = state * 18 + temp_state
+        state = state * 96 + toxic_state
 
         return state
 
@@ -272,7 +374,7 @@ class Sorter:
     def step(learn = False):
         old_state = Sorter.get_current_state()
         q_values = Sorter.get_q_values(old_state)
-
+        
         if rnd.uniform(0, 1) < Sorter.epsilon:  ### Explore
             Sorter.action = rnd.randrange(Sorter.num_of_actions)
         else:                                   ### Exploit
@@ -300,8 +402,34 @@ class Sorter:
 
         return terminated
     
+    def translate_action(action): ### Map an action chosen on a mirrored state back to the physical ports
+        if not Sorter.ports_swapped:
+            return action
+
+        if action == 0: ### Place to port 1 becomes place to port 2
+            return 1
+        elif action == 1: ### Place to port 2 becomes place to port 1
+            return 0
+        elif action < 4: ### Temporary and toxic ports are unaffected
+            return action
+
+        move = action - 4
+        source = move // (Sorter.total_port_count - 1)
+        targets = [0,1,2,3]
+        targets.remove(source)
+        target = targets[move % (Sorter.total_port_count - 1)]
+
+        swap = {0: 1, 1: 0, 2: 2, 3: 3}
+        source = swap[source]
+        target = swap[target]
+
+        targets = [0,1,2,3]
+        targets.remove(source)
+
+        return 4 + source * (Sorter.total_port_count - 1) + targets.index(target)
+
     def act():
-        action = Sorter.action
+        action = Sorter.translate_action(Sorter.action) ### Convert the mirrored action into a physical one
         
         if action < 2: ### Move from cargo to ports
             return Sorter.place_to_port(action)

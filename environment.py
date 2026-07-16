@@ -10,8 +10,8 @@ def moving_average(data, window=500): ### Used to calculate the graph post-train
     return data
 
 def train_sorter():
-    epoch_count = 1_000_000
-    per = 10_000 ### Number of episodes per report
+    epoch_count = 500_000
+    per = 25_000 ### Number of episodes per report
     rewards = []
 
     ### Set the map
@@ -79,6 +79,10 @@ def test_sorter():
 
 
 Sorter.reset_q_table(6)
-print(f"Q-Table set - Container Amount: {Sorter.number_of_containers}, Port Capacity: {Sorter.port_capacity}, Temporary Port Capacity: {Sorter.temp_port_capacity}, Toxic Port Capacity: {Sorter.toxic_port_capacity}, Number of total states: {Sorter.num_of_states}")
+print(f"Q-Table set - Container Amount: {Sorter.number_of_containers}, Port Capacity: {Sorter.port_capacity}, Temporary Port Capacity: {Sorter.temp_port_capacity}, Toxic Port Capacity: {Sorter.toxic_port_capacity}")
 train_sorter()
+test_sorter()
+test_sorter()
+test_sorter()
+test_sorter()
 test_sorter()
