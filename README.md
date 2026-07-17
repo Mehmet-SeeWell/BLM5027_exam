@@ -77,13 +77,11 @@ Limanlar arasında konteyner taşınırken sadece en üstte bulunan konteyner ha
 
 ```
     def container_check():
-        reward = 0
-
         ### If all the cargo are placed correctly
         if len(Sorter.cargo) == 0 and len(Sorter.ports[2]) == 0:
             if False not in [Sorter.is_sorted(n) and Sorter.is_size_sorted(n) and Sorter.is_toxic_sorted(n) for n in range(4)]:
-                reward += 1000
-        return reward
+                return 1000
+        return 0
 ```
 
 ## Model Yapısı
